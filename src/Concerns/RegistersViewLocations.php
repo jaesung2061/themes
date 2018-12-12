@@ -1,6 +1,6 @@
 <?php
 
-namespace Caffeinated\Themes\Traits;
+namespace Caffeinated\Themes\Concerns;
 
 trait RegistersViewLocations
 {
@@ -30,12 +30,13 @@ trait RegistersViewLocations
     protected function removeRegisteredLocation()
     {
         $current         = $this->where('slug', $this->getCurrent())->first();
-        $currentLocation = config('themes.paths.absolute').'/'.$current->get('slug').'/views';
+        $currentLocation = config('themes.path').'/'.$this->format($current->get('slug')).'/resources/views';
+
         app('view.finder')->removeLocation($currentLocation);
 
         if ($current->has('parent')) {
             $parent         = $this->where('slug', $current->get('parent'))->first();
-            $parentLocation = config('themes.paths.absolute').'/'.$current->get('slug').'/views';
+            $parentLocation = config('themes.path').'/'.$this->format($current->get('slug')).'/resources/views';
             app('view.finder')->removeLocation($parentLocation);
         }
     }
@@ -49,11 +50,22 @@ trait RegistersViewLocations
     protected function addRegisteredLocation($theme, $parent)
     {
         if (! is_null($parent)) {
-            $parentLocation = config('themes.paths.absolute').'/'.$parent->get('slug').'/views';
+            $parentLocation = config('themes.path').'/'.$this->format($parent->get('slug')).'/resources/views';
             app('view.finder')->prependLocation($parentLocation);
         }
 
-        $themeLocation = config('themes.paths.absolute').'/'.$theme->get('slug').'/views';
+        $themeLocation = config('themes.path').'/'.$this->format($theme->get('slug')).'/resources/views';
         app('view.finder')->prependLocation($themeLocation);
+    }
+
+    /**
+     * Format the name of the theme name to reference the correct directory.
+     * 
+     * @param  string  $name
+     * @return string
+     */
+    protected function format($name)
+    {
+        return ucfirst(camel_case($name));
     }
 }
