@@ -20,17 +20,6 @@ class Theme extends Collection
     protected $layout = null;
 
     /**
-     * Create a new collection.
-     *
-     * @param  mixed  $items
-     * @return void
-     */
-    public function __construct($items = [])
-    {
-        parent::__construct($items);
-    }
-
-    /**
      * Register and set the currently active theme.
      *
      * @param  string  $theme
@@ -39,17 +28,20 @@ class Theme extends Collection
     {
         list($theme, $parent) = $this->resolveTheme($theme);
 
-        if (! $this->isCurrent($theme->get('slug')) and (! is_null($this->getCurrent()))) {
+        if (! $this->isCurrently($theme->get('slug')) and (! is_null($this->getCurrent()))) {
             $this->removeRegisteredLocation();
         }
 
-        $this->addRegisteredLocation($theme, $parent);
-
         $this->setCurrent($theme->get('slug'));
+        
+        $this->registerAutoload($this->format($theme->get('slug')));
+        $this->addRegisteredLocation($theme, $parent);
+        $this->symlinkPublicDirectory();
+        $this->registerServiceProvider($this->format($theme->get('slug')));
     }
 
     /**
-     * Get the relative path of the given theme file.
+     * Get the path of the given theme file.
      *
      * @param  string  $file
      * @param  string  $theme
@@ -63,7 +55,7 @@ class Theme extends Collection
 
         $theme = $this->format($theme);
 
-        return config('themes.path')."/$theme/$file";
+        return base_path("themes/{$theme}/{$file}");
     }
 
     /**
@@ -85,7 +77,6 @@ class Theme extends Collection
     {
         $this->layout = $layout;
     }
-
     /**
      * Set the current theme property.
      *
@@ -94,20 +85,6 @@ class Theme extends Collection
     public function setCurrent($theme)
     {
         $this->current = $theme;
-        
-        $theme = ucfirst($theme);
-
-        if (! file_exists(public_path('themes/'.$this->current))) {
-            if (! file_exists(public_path('themes'))) {
-                app()->make('files')->makeDirectory(public_path('themes'));
-            }
-
-            app()->make('files')->link(
-                $this->path('public'), public_path('themes/'.$this->current)
-            );
-        }
-
-        app()->register("Themes\\$theme\\Providers\\ThemeServiceProvider");
     }
 
     /**
@@ -126,7 +103,7 @@ class Theme extends Collection
      * @param  string  $theme
      * @return bool
      */
-    public function isCurrent($theme)
+    public function isCurrently($theme)
     {
         return $this->current === $theme;
     }
@@ -137,8 +114,56 @@ class Theme extends Collection
      * @param  string  $name
      * @return string
      */
-    private function format($name)
+    protected function format($name)
     {
         return ucfirst(camel_case($name));
     }
+
+    /**
+     * Symlink the themes public directory so its accesible
+     * by the web.
+     * 
+     * @return void
+     */
+    protected function symlinkPublicDirectory()
+    {
+        if (! file_exists(public_path('themes/'.$this->getCurrent()))) {
+            if (! file_exists(public_path('themes'))) {
+                app()->make('files')->makeDirectory(public_path('themes'));
+            }
+
+            app()->make('files')->link(
+                $this->path('public'), public_path('themes/'.$this->getCurrent())
+            );
+        }
+    }
+
+    /**
+     * Register the theme's service provider.
+     * 
+     * @param  string  $theme
+     * @return void
+     */
+    protected function registerServiceProvider($theme)
+    {
+        app()->register("Themes\\$theme\\Providers\\ThemeServiceProvider");
+    }
+
+    /**
+     * Register the themes path as a PSR-4 reference.
+     * 
+     * @param  string  $theme
+     * @return void
+     */
+    protected function registerAutoload($theme)
+	{
+        $composer = require(base_path('vendor/autoload.php'));
+        
+        $class = 'Themes\\'.$theme.'\\';
+        $path  = $this->path('src/');
+
+        if (! array_key_exists($class, $composer->getClassMap())) {
+            $composer->addPsr4($class, $path);
+        }
+	}
 }
